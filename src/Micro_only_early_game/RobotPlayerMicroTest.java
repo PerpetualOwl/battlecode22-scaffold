@@ -1,4 +1,4 @@
-package examplefuncsplayer;
+package Micro_only_early_game;
 
 import battlecode.common.*;
 import java.util.Random;
@@ -42,7 +42,7 @@ public strictfp class RobotPlayerMicroTest {
         while (true) { /** main loop **/
 
             turnCount += 1;
-            System.out.println("Age: " + turnCount + "; Location: " + rc.getLocation());
+            MapLocation me = rc.getLocation();
 
             runGetVision();
 
@@ -95,27 +95,51 @@ public strictfp class RobotPlayerMicroTest {
         }
     }
     static void runMiner(RobotController rc) throws GameActionException {
-        // Try to mine on squares around us.
+        // Remember location of archon that produced me
+        if (turnCount == 1) { 
+            MapLocation archonProducedMeLocation = rc.getLocation();
+            // 49 tiles make a square which is easier to code than the entire vision "circle"
+            int[] rubbleVision = new int[49]; // array will have numerical values, will be soon replaced though
+            int[] leadVision = new int[49];
+            int[] goldVision = new int[49];
+
+        }
+        // Mine anything possible around me prioritizing ones that i just moved past
         MapLocation me = rc.getLocation();
-        for (int dx = -1; dx <= 1; dx++) {
+        for (int dx = -1; dx <= 1; dx++) { // mine gold first!! (only from drops)
             for (int dy = -1; dy <= 1; dy++) {
                 MapLocation mineLocation = new MapLocation(me.x + dx, me.y + dy);
-                // Notice that the Miner's action cooldown is very low.
-                // You can mine multiple times per turn!
                 while (rc.canMineGold(mineLocation)) {
                     rc.mineGold(mineLocation);
                 }
+        for (int dx = -1; dx <= 1; dx++) { // then mine lead (need to add priority of tiles later on)
+            for (int dy = -1; dy <= 1; dy++) {
+                MapLocation mineLocation = new MapLocation(me.x + dx, me.y + dy);
                 while (rc.canMineLead(mineLocation)) {
                     rc.mineLead(mineLocation);
                 }
             }
         }
+        // Time to get vision for our next movement!!
+        int visiontile = -1;
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dy = -3; dy <= 3; dy++) {
+                MapLocation visionLocation =  new MapLocation(me.x + dx, me.y + dy);
+                if (canSenseLocation(MapLocation visionLocation) == true) {
+                    visiontile++;
+                    rubbleVision[visiontile] = rc.senseRubble(Maplocation visionLocation);
+                    leadVision[visiontile] = rc.senseLead(Maplocation visionLocation);
+                    goldVision[visiontile] = rc.senseGold(Maplocation visionLocation);
+                    if (canSenseRobotAtLocation(MapLocation visionLocation) == true) {
+                        if (Team getTeam)
+                    }
+                }
+            }
+        }
 
-        // Also try to move randomly.
         Direction dir = directions[rng.nextInt(directions.length)];
         if (rc.canMove(dir)) {
             rc.move(dir);
-            System.out.println("I moved!");
         }
     }
 
