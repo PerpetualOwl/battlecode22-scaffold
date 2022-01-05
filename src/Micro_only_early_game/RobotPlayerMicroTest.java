@@ -105,7 +105,6 @@ public strictfp class RobotPlayerMicroTest {
 
         }
         // Mine anything possible around me prioritizing ones that i just moved past
-        MapLocation me = rc.getLocation();
         for (int dx = -1; dx <= 1; dx++) { // mine gold first!! (only from drops)
             for (int dy = -1; dy <= 1; dy++) {
                 MapLocation mineLocation = new MapLocation(me.x + dx, me.y + dy);
@@ -131,12 +130,13 @@ public strictfp class RobotPlayerMicroTest {
                     leadVision[visiontile] = rc.senseLead(Maplocation visionLocation);
                     goldVision[visiontile] = rc.senseGold(Maplocation visionLocation);
                     if (canSenseRobotAtLocation(MapLocation visionLocation) == true) {
-                        if (Team getTeam)
+                        if ( //insert code to detect what type of robot and create actions based on it
                     }
                 }
             }
         }
 
+        // need new movement protocol based on vision updates
         Direction dir = directions[rng.nextInt(directions.length)];
         if (rc.canMove(dir)) {
             rc.move(dir);
@@ -168,7 +168,14 @@ public strictfp class RobotPlayerMicroTest {
     }
 
     static void runWatchtower(RobotController rc) throws GameActionException {
-        
+        RobotInfo[] nearbyRobots = senseNearbyRobots(MapLocation me, int -1, Team opponent);
+        for (int i = 0; i < nearbyRobots.length; i++) {
+            nearbyRobots[i]
+
+
+        }
+
+
     }
 
     static void runBuilder(RobotController rc) throws GameActionException {
