@@ -4,7 +4,7 @@ import battlecode.common.*;
 import java.util.Random;
 
 
-public strictfp class RobotPlayerMicroTest {
+public strictfp class RobotPlayer {
 
 
     static int turnCount = 0;
