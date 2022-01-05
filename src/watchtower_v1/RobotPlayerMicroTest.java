@@ -1,4 +1,4 @@
-package Micro_only_early_game;
+package Watchtower_v1;
 
 import battlecode.common.*;
 import java.util.Random;
