@@ -152,7 +152,7 @@ public strictfp class RobotPlayer {
             // three possible statuses - need to decide how to set it
             // 0: target repair status, lock onto a normal building and repair it over and over, apply repair to secondary target if primary target is full hp
             // 1: laboratory build/repair status, use recommended coordinates saved and provided (probably recorded) to build specific building
-            // 1: same as above but for turrets
+            // 2: same as above but for turrets
             int builderStatus = 0;
             MapLocation currentTargetLocation; //goal lab location, goal watchtower prototype location or defending a target
         }
@@ -202,16 +202,45 @@ public strictfp class RobotPlayer {
         } else if (((builderStatus == 1) || (builderStatus == 2)) && (canSenseLocation(currentTargetLocation))) {
             // if builder is actively pathfinding to currentTargetLocation, this part of the code can be ignored
             // if builder is within range of currentTargetLocation, check what is there
-                //  if there is a completed full hp building, switch to mode 0 with the same target location until overridden
+                // if there is a completed full hp building, switch to mode 0 with the same target location until overridden
                 // if there is a partial hp prototype, repair it
                 // if there is nothing there, place a prototype
             RobotInfo targetRobot = senseRobotAtLocation(currentTargetLocation);
-            
-
-
-
-
+            Team rteam = 
+            RobotMode rmode = 
+            if (builderStatus == 1) {
+                RobotType rTargetType = LABORATORY;
+            } else if (builderStatus == 2) {
+                RobotType rTargetType = WATCHTOWER;
+            }
+            if (rteam = ally) {
+                if (rmode = PROTOTYPE) {
+                    if (canRepair(currentTargetLocation)) {
+                        repair(currentTargetLocation);
+                    }
+                } else if (rmode = TURRET) {
+                    builderStatus = 0;
+                    if (canRepair(currentTargetLocation)) {
+                        repair(currentTargetLocation);
+                    }
+            } else if (!(canSenseRobotAtLocation(currentTargetLocation))) {
+                Direction targetDirection;
+                for (int i = 0; i < directions.length; i++) {
+                    if (adjacentLocation(directions[i]) == currentTargetLocation) {
+                        if (canBuildRobot(rTargetType, directions[i])) {
+                            buildRobot(rTargetType, directions[i]);
+                        }
+                    }
+                }
+            } else {
+                for (int i = 0; i < directions.length; i++) {
+                    if (canBuildRobot(rTargetType, directions[i])) {
+                        buildRobot(rTargetType, directions[i]);
+                    }
+                }
+            }
         }
+        // insert pathfinding, if builder cannot sense currentTargetLocation, it must pathfind towards it
 
     }
 
