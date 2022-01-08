@@ -4,6 +4,20 @@ import java.lang.Math;
 
 import java.security.cert.TrustAnchor;
 import java.util.Random;
+
+
+/**
+NOTES ABOUT COMMUNICATON ARRAY
+0-3, enemy archon tracking information _ (1=nonexistent, 0=coords are correct) _ _ (x coord) _ _ (y coord), all in base 10
+4-7, allied archon tracking information (first few turns, can get overwritten later)
+
+
+
+
+
+
+
+**/
 public strictfp class RobotPlayer {
     static int turnCount = 0;
     static final Random rng = new Random(6147);
@@ -41,12 +55,8 @@ public strictfp class RobotPlayer {
     @SuppressWarnings("used")
     public static void run(RobotController rc) throws GameActionException 
     {
-        System.out.println("I'm a " + rc.getType() + " and I just got created! I have health " + rc.getHealth());
-        rc.setIndicatorString("Hello world!");
         while (true) 
         {
-            turnCount += 1;
-            System.out.println("Age: " + turnCount + "; Location: " + rc.getLocation());
             Team ally = rc.getTeam();
             Team opponent = ally.opponent();
             try 
@@ -84,6 +94,7 @@ public strictfp class RobotPlayer {
     static void runArchon(RobotController rc) throws GameActionException 
     {
         MapLocation me = rc.getLocation();
+        int roundNum = rc.getRoundNum();
         if (rc.getRoundNum() < 1) {
             MapLocation[] miningLocations = rc.senseNearbyLocationsWithLead(34);
             minerCount = 0;
@@ -96,11 +107,13 @@ public strictfp class RobotPlayer {
         }
         Direction dir = directions[rng.nextInt(directions.length)];
         
-        int archonID = (rc.getID() % 4);
-        int xCoord = rc.getMapWidth() - me.x;
-        int yCoord = rc.getMapHeight() - me.y;
-        int toWrite = ((xCoord * 100) + yCoord);
-        rc.writeSharedArray(archonID, toWrite);
+        int archonID = ((int)Math.floor(Double.valueOf(rc.getID() / 2)) % 4);
+        if (rc.readSharedArray(archonID) < 10000) {
+            int xCoord = rc.getMapWidth() - me.x;
+            int yCoord = rc.getMapHeight() - me.y;
+            int toWrite = ((xCoord * 100) + yCoord);
+            rc.writeSharedArray(archonID, toWrite);
+        }
         
         if (minerCount < 20)
         {
@@ -112,12 +125,45 @@ public strictfp class RobotPlayer {
         } 
         else 
         {
-            rc.setIndicatorString("Trying to build a soldier");
             if (rc.canBuildRobot(RobotType.SOLDIER, dir)) 
             {
                 rc.buildRobot(RobotType.SOLDIER, dir);
             }
-        } 
+        }
+        if ((rc.getMode() == RobotMode.TURRET) && rc.canTransform()) {
+            rc.transform();
+        }
+        int xCoordTotalModified = 0;
+        int yCoordTotalModified = 0;
+        if ((roundNum < 5) || ((roundNum % 10) == 0)) {
+            int toWrite = (((me.x * 100) + me.y) + 10000);
+            rc.writeSharedArray((archonID + 4), toWrite);
+        }
+        if ((((rc.getMapWidth() - me.x) < 10) || (me.x < 10)) && (((rc.getMapHeight() - me.y) < 10) || (me.y < 10))) {
+            RobotInfo[] nearbyRobots = rc.senseNearbyRobots(-1, rc.getTeam());
+            //INSERT CODE to keep distance from allied archons to not clump too hard (blocks spawning spaces)
+
+        } else {
+            int archonLocation;
+            Direction[] archonQuadrants = {Direction.CENTER, Direction.CENTER, Direction.CENTER, Direction.CENTER};
+
+            for (int i = 0; i < 4; i++) {
+                archonLocation = rc.readSharedArray(i + 4);
+                if (archonLocation > 9999) {
+                    int xCoordModified = ((int)Math.floor((archonLocation - 10000) / 100)) - (int)Math.floor(rc.getMapWidth() / 2);
+                    int yCoordModified = (archonLocation - 10000) - (xCoordModified * 100) - (int)Math.floor(rc.getMapHeight() / 2);
+                    xCoordTotalModified = xCoordTotalModified + xCoordModified;
+                    yCoordTotalModified = yCoordTotalModified + yCoordModified;
+                }
+            }
+            int xCoord = (xCoordTotalModified / Math.abs(xCoordTotalModified)) * ((int)Math.floor(rc.getMapWidth() / 2) - 5);
+            int yCoord = (yCoordTotalModified / Math.abs(yCoordTotalModified)) * ((int)Math.floor(rc.getMapHeight() / 2) - 5);
+            MapLocation targetToPathTo = new MapLocation(xCoord, yCoord);
+            Direction directionToPathTo = rc.getLocation().directionTo(targetToPathTo);
+            if (rc.canMove(directionToPathTo)) {
+                rc.move(directionToPathTo);
+            }
+        }
     }
     static void runMiner(RobotController rc) throws GameActionException 
     {
@@ -219,12 +265,27 @@ public strictfp class RobotPlayer {
     }
     static void runSoldier(RobotController rc) throws GameActionException 
     {
+        MapLocation me = rc.getLocation();
         int radius = rc.getType().actionRadiusSquared;
         Team opponent = rc.getTeam().opponent();
         int height=rc.getMapHeight();
         Direction dir = directions[rng.nextInt(directions.length)];
         int width=rc.getMapWidth(); // make it always accessible from everywhere
         RobotInfo[] enemies = rc.senseNearbyRobots(radius, opponent);
+        boolean thereIsArchonInVision = false;
+        for (int i = 0; i < enemies.length; i++) {
+            if (enemies[i].type == RobotType.ARCHON) {
+                MapLocation toAttack = enemies[i].location;
+                thereIsArchonInVision = true;
+                if (rc.canAttack(toAttack)) {
+                    rc.attack(toAttack);
+                }
+            }
+            int archonID = ((int)Math.floor(Double.valueOf(enemies[i].ID / 2)) % 4);
+            MapLocation archonLocInVision = enemies[i].location;
+            int toWrite = ((archonLocInVision.x * 100) + archonLocInVision.y);
+            rc.writeSharedArray(archonID, toWrite);
+        }
         if (enemies.length > 0) 
         {
             MapLocation toAttack = enemies[0].location;
@@ -236,13 +297,24 @@ public strictfp class RobotPlayer {
         // getCurrentAttackLocation
         int arrayToReadFrom = (rc.getID() % 4);
         int attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
-        int xCoord = (int)Math.floor(attackArrayInformation / 100);
-        int yCoord = attackArrayInformation - (xCoord * 100);
-        MapLocation attackLocation = new MapLocation(xCoord, yCoord);
-        Direction attackDirection = rc.getLocation().directionTo(attackLocation);
-        if (rc.canMove(attackDirection)) {
-            rc.move(attackDirection);
+        if (attackArrayInformation < 10000) {
+            int xCoord = (int)Math.floor(attackArrayInformation / 100);
+            int yCoord = attackArrayInformation - (xCoord * 100);
+            MapLocation attackLocation = new MapLocation(xCoord, yCoord);
+            Direction attackDirection = rc.getLocation().directionTo(attackLocation);
+            if (rc.canMove(attackDirection)) {
+                rc.move(attackDirection);
+            }
+            if ((me == attackLocation) && (thereIsArchonInVision == false)) {
+                rc.writeSharedArray(arrayToReadFrom, 10000);
+            }
+        } else {
+            Direction randdirection = directions[rng.nextInt(directions.length)];
+            if (rc.canMove(randdirection)) {
+                rc.move(randdirection);
+            }
         }
+        
 
         /**if (turnCount!=1)
         {
@@ -381,8 +453,6 @@ public strictfp class RobotPlayer {
         if (rc.canAttack(rlocation)) {
             rc.attack(rlocation);
         }
-        // PATHFINDING!!!
-
     }
 
     static void runBuilder(RobotController rc) throws GameActionException {
