@@ -1,9 +1,23 @@
-package taohao;
+package taohao1;
 import battlecode.common.*;
-import javafx.beans.binding.MapBinding;
 import java.lang.Math;
+
 import java.security.cert.TrustAnchor;
 import java.util.Random;
+
+
+/**
+NOTES ABOUT COMMUNICATON ARRAY
+0-3, enemy archon tracking information _ (1=nonexistent, 0=coords are correct) _ _ (x coord) _ _ (y coord), all in base 10
+4-7, allied archon tracking information (first few turns, can get overwritten later)
+
+
+
+
+
+
+
+**/
 public strictfp class RobotPlayer {
     static int turnCount = 0;
     static final Random rng = new Random(6147);
@@ -13,7 +27,8 @@ public strictfp class RobotPlayer {
     static int robotAge=1;
     static int robotAge2=1;
     static int goldVision = 0;
-    static int minerCount;
+    static int minerCount = 0;
+
     static MapLocation archonloc0;
     static MapLocation archonloc1;
     static MapLocation archonloc2;
@@ -79,21 +94,19 @@ public strictfp class RobotPlayer {
     static void runArchon(RobotController rc) throws GameActionException 
     {
         MapLocation me = rc.getLocation();
-        if (rc.getRoundNum() == 1) 
-        {
-            MapLocation[] miningLocations = rc.senseNearbyLocationsWithLead(20);
-            if (miningLocations.length > 0) 
-            {
-                minerCount = miningLocations.length;
+        int roundNum = rc.getRoundNum();
+        if (rc.getRoundNum() < 1) {
+            MapLocation[] miningLocations = rc.senseNearbyLocationsWithLead(34);
+            minerCount = 0;
+            if (miningLocations.length > 0) {}
                 Direction dir = rc.getLocation().directionTo(miningLocations[0]);
-                if (rc.canBuildRobot(RobotType.MINER, dir)) 
-                {
+                if (rc.canBuildRobot(RobotType.MINER, dir)) {
                     rc.buildRobot(RobotType.MINER, dir);
-                    minerCount--;
+                    minerCount++;
                 }
-            }
         }
         Direction dir = directions[rng.nextInt(directions.length)];
+        
         int archonID = ((int)Math.floor(Double.valueOf(rc.getID() / 2)) % 4);
         if (rc.readSharedArray(archonID) < 10000) {
             int xCoord = rc.getMapWidth() - me.x;
@@ -102,23 +115,55 @@ public strictfp class RobotPlayer {
             rc.writeSharedArray(archonID, toWrite);
         }
         
-        if (minerCount>0)
+        if (minerCount < 20)
         {
             if (rc.canBuildRobot(RobotType.MINER, dir))
             {
                 rc.buildRobot(RobotType.MINER, dir);
-                minerCount--;
+                minerCount++;
             }
-        }
-        else
+        } 
+        else 
         {
             if (rc.canBuildRobot(RobotType.SOLDIER, dir)) 
             {
                 rc.buildRobot(RobotType.SOLDIER, dir);
             }
         }
+        if ((rc.getMode() == RobotMode.TURRET) && rc.canTransform()) {
+            rc.transform();
+        }
+        int xCoordTotalModified = 0;
+        int yCoordTotalModified = 0;
+        if ((roundNum < 5) || ((roundNum % 10) == 0)) {
+            int toWrite = (((me.x * 100) + me.y) + 10000);
+            rc.writeSharedArray((archonID + 4), toWrite);
+        }
+        if ((((rc.getMapWidth() - me.x) < 10) || (me.x < 10)) && (((rc.getMapHeight() - me.y) < 10) || (me.y < 10))) {
+            RobotInfo[] nearbyRobots = rc.senseNearbyRobots(-1, rc.getTeam());
+            //INSERT CODE to keep distance from allied archons to not clump too hard (blocks spawning spaces)
 
+        } else {
+            int archonLocation;
+            Direction[] archonQuadrants = {Direction.CENTER, Direction.CENTER, Direction.CENTER, Direction.CENTER};
 
+            for (int i = 0; i < 4; i++) {
+                archonLocation = rc.readSharedArray(i + 4);
+                if (archonLocation > 9999) {
+                    int xCoordModified = ((int)Math.floor((archonLocation - 10000) / 100)) - (int)Math.floor(rc.getMapWidth() / 2);
+                    int yCoordModified = (archonLocation - 10000) - (xCoordModified * 100) - (int)Math.floor(rc.getMapHeight() / 2);
+                    xCoordTotalModified = xCoordTotalModified + xCoordModified;
+                    yCoordTotalModified = yCoordTotalModified + yCoordModified;
+                }
+            }
+            int xCoord = (xCoordTotalModified / Math.abs(xCoordTotalModified)) * ((int)Math.floor(rc.getMapWidth() / 2) - 5);
+            int yCoord = (yCoordTotalModified / Math.abs(yCoordTotalModified)) * ((int)Math.floor(rc.getMapHeight() / 2) - 5);
+            MapLocation targetToPathTo = new MapLocation(xCoord, yCoord);
+            Direction directionToPathTo = rc.getLocation().directionTo(targetToPathTo);
+            if (rc.canMove(directionToPathTo)) {
+                rc.move(directionToPathTo);
+            }
+        }
     }
     static void runMiner(RobotController rc) throws GameActionException 
     {
