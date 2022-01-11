@@ -1,4 +1,4 @@
-package taohao3;
+package taohaoC3;
 import battlecode.common.*;
 import javafx.beans.binding.MapBinding;
 import java.lang.Math;
@@ -26,6 +26,7 @@ public strictfp class RobotPlayer {
     static MapLocation archonloc7;
     static MapLocation archonloc8;
     static MapLocation archonloc9;
+    static int x=1;
     static MapLocation currentTargetLocation; // for builders
 
     static final Direction[] directions = 
@@ -84,7 +85,7 @@ public strictfp class RobotPlayer {
         MapLocation me = rc.getLocation();
         int myID = (int)rc.getID();
         int turn = rc.getRoundNum();
-        if (turn < 20 && ((myID != 3) && (myID != 2)))
+        if (rc.getRoundNum() == 1)
         {
             MapLocation[] miningLocations = rc.senseNearbyLocationsWithLead(34);
             if (miningLocations.length > 0) 
@@ -125,15 +126,15 @@ public strictfp class RobotPlayer {
         
         //build other robots if possible
         if (!(((turn % 100) < 100) && ((turn % 100) > 70)) && (turn > 20)) {
-            if ((turn < 60) || ((turn % 10) == 0))
+            if (minerCount>0)
             {
                 if (rc.canBuildRobot(RobotType.MINER, dir))
                 {
                     rc.buildRobot(RobotType.MINER, dir);
-                    minerCount++;
+                    minerCount--;
                 }
             }
-            else if ((turn % 10) > 4)
+            else
             {
                 if (rc.canBuildRobot(RobotType.SOLDIER, dir)) 
                 {
@@ -217,12 +218,6 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        boolean doINeedToMove = true;
-        if (rc.senseLead(me) >= 8 || rc.senseGold(me) >= 3) {
-            doINeedToMove = false;
-        }
-
-
         for (int dx = -3; dx <= 3; dx++) {
             for (int dy = -3; dy <= 3; dy++) {
                 MapLocation visionLocation =  new MapLocation(me.x + dx, me.y + dy);
@@ -233,28 +228,30 @@ public strictfp class RobotPlayer {
                     rubbleVision = rc.senseRubble(visionLocation);
                     leadVision = rc.senseLead(visionLocation);
                     goldVision = rc.senseGold(visionLocation);
-                    if (!rc.canSenseRobotAtLocation(visionLocation)) {
-                        if (goldVision!=0) {
-                            if (rc.canMove(mind) && doINeedToMove) 
+                    if (goldVision!=0) {
+                        if (rc.canMove(mind)) 
+                        {
+                            rc.move(mind);
+                        }
+                    } 
+                    else if (leadVision!=0) 
+                    {   if (onlead==0)
+                        {
+                            if (rc.canMove(mind)) 
                             {
                                 rc.move(mind);
                             }
-                        } 
-                        else if (leadVision!=0) 
-                        {   if (onlead==0)
-                            {
-                                if (rc.canMove(mind) && doINeedToMove) 
-                                {
-                                    rc.move(mind);
-                                }
-                            }
                         }
-                    }
+                        else
+                        {
+                            rc.mineLead(me);
+                        }
+                    } 
                     else if (rc.canSenseRobotAtLocation(visionLocation)) {
                         if (enemies.length > 0) {
                             MapLocation toleave = enemies[0].location;
                             Direction canleave = rc.getLocation().directionTo(toleave).opposite();
-                            if (rc.canMove(canleave) && doINeedToMove) 
+                            if (rc.canMove(canleave)) 
                             {
                                 rc.move(canleave);
                             }
@@ -263,30 +260,26 @@ public strictfp class RobotPlayer {
                 }
             }
         }
-        
-        if ((rc.getMovementCooldownTurns() == 0) && (doINeedToMove)) {
-            int arrayToReadFrom = (rc.getID() % 4);
-            int attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
-            if (attackArrayInformation < 10000) {
-                int xCoord = (int)Math.floor(attackArrayInformation / 100);
-                int yCoord = attackArrayInformation - (xCoord * 100);
-                MapLocation attackLocation = new MapLocation(xCoord, yCoord);
-                Direction attackDirection = rc.getLocation().directionTo(attackLocation);
-                if (rc.canMove(attackDirection)) {
-                    rc.move(attackDirection);
-                }
-                if ((me == attackLocation) && (thereIsArchonInVision == false)) {
-                    rc.writeSharedArray(arrayToReadFrom, 10000);
-                }
-            } else {
-                Direction randdirection = directions[rng.nextInt(directions.length)];
-                if (rc.canMove(randdirection)) {
-                    rc.move(randdirection);
-                }
+        int arrayToReadFrom = (rc.getID() % 4);
+        int attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
+        if (attackArrayInformation < 10000) {
+            int xCoord = (int)Math.floor(attackArrayInformation / 100);
+            int yCoord = attackArrayInformation - (xCoord * 100);
+            MapLocation attackLocation = new MapLocation(xCoord, yCoord);
+            Direction attackDirection = rc.getLocation().directionTo(attackLocation);
+            if (rc.canMove(attackDirection)) {
+                rc.move(attackDirection);
+            }
+            if ((me == attackLocation) && (thereIsArchonInVision == false)) {
+                rc.writeSharedArray(arrayToReadFrom, 10000);
+            }
+        } else {
+            Direction randdirection = directions[rng.nextInt(directions.length)];
+            if (rc.canMove(randdirection)) {
+                rc.move(randdirection);
             }
         }
-
-        /** if (rc.getMovementCooldownTurns() == 0) 
+        if (rc.getMovementCooldownTurns() == 0) 
         {
             //  making a grid
             int fiveWidth = (int)Math.floor(Double.valueOf(rc.getMapWidth() / 5));
@@ -297,11 +290,11 @@ public strictfp class RobotPlayer {
             MapLocation targetToPathTo = new MapLocation(xCoord, yCoord);
             // moving towards assigned point on grid until it finds a lead deposit
             Direction toGridPoint = rc.getLocation().directionTo(targetToPathTo);
-            if (rc.canMove(toGridPoint) && doINeedToMove) 
+            if (rc.canMove(toGridPoint)) 
             {
                 rc.move(toGridPoint);
             }
-        } **/
+        }
             /**if (turnCount!= 1)
         {
             MapLocation earchon =  new MapLocation((width - archonloc2.x), (height - archonloc2.y));
@@ -363,17 +356,107 @@ public strictfp class RobotPlayer {
                 rc.move(randdirection);
             }
         }
+        
+
+        /**if (turnCount!=1)
+        {
+            if (archonloc0!=null)
+            {
+                MapLocation earchon0 =  new MapLocation((width - archonloc0.x), (height - archonloc0.y));
+                Direction enemyarchon0 = rc.getLocation().directionTo(earchon0);
+                if (rc.canMove(enemyarchon0)) 
+                {
+                    rc.move(enemyarchon0);
+                }
+            }
+            if (archonloc1!=null)
+            {
+                MapLocation earchon1 =  new MapLocation((width - archonloc1.x), (height - archonloc1.y));
+                Direction enemyarchon1 = rc.getLocation().directionTo(earchon1);
+                if (rc.canMove(enemyarchon1)) 
+                {
+                    rc.move(enemyarchon1);
+                }
+            }
+            if (archonloc2!=null)
+            {
+                MapLocation earchon2 =  new MapLocation((width - archonloc2.x), (height - archonloc2.y));
+                Direction enemyarchon2 = rc.getLocation().directionTo(earchon2);
+                if (rc.canMove(enemyarchon2)) 
+                {
+                    rc.move(enemyarchon2);
+                }
+            }
+            if (archonloc3!=null)
+            {
+                MapLocation earchon3 =  new MapLocation((width - archonloc3.x), (height - archonloc3.y));
+                Direction enemyarchon3 = rc.getLocation().directionTo(earchon3);
+                if (rc.canMove(enemyarchon3)) 
+                {
+                    rc.move(enemyarchon3);
+                }
+            }
+            if (archonloc4!=null)
+            {
+                MapLocation earchon4 =  new MapLocation((width - archonloc4.x), (height - archonloc4.y));
+                Direction enemyarchon4 = rc.getLocation().directionTo(earchon4);
+                if (rc.canMove(enemyarchon4)) 
+                {
+                    rc.move(enemyarchon4);
+                }
+            }
+            if (archonloc5!=null)
+            {
+                MapLocation earchon5 =  new MapLocation((width - archonloc5.x), (height - archonloc5.y));
+                Direction enemyarchon5 = rc.getLocation().directionTo(earchon5);
+                if (rc.canMove(enemyarchon5)) 
+                {
+                    rc.move(enemyarchon5);
+                }
+            }
+            if (archonloc6!=null)
+            {
+                MapLocation earchon6 =  new MapLocation((width - archonloc6.x), (height - archonloc6.y));
+                Direction enemyarchon6 = rc.getLocation().directionTo(earchon6);
+                if (rc.canMove(enemyarchon6)) 
+                {
+                    rc.move(enemyarchon6);
+                }
+            }
+            if (archonloc7!=null)
+            {
+                MapLocation earchon7 =  new MapLocation((width - archonloc7.x), (height - archonloc7.y));
+                Direction enemyarchon7 = rc.getLocation().directionTo(earchon7);
+                if (rc.canMove(enemyarchon7)) 
+                {
+                    rc.move(enemyarchon7);
+                }
+            }
+            if (archonloc8!=null)
+            {
+                MapLocation earchon8 =  new MapLocation((width - archonloc8.x), (height - archonloc8.y));
+                Direction enemyarchon8 = rc.getLocation().directionTo(earchon8);
+                if (rc.canMove(enemyarchon8)) 
+                {
+                    rc.move(enemyarchon8);
+                }
+            }
+            if (archonloc9!=null)
+            {
+                MapLocation earchon9 =  new MapLocation((width - archonloc9.x), (height - archonloc9.y));
+                Direction enemyarchon9 = rc.getLocation().directionTo(earchon9);
+                if (rc.canMove(enemyarchon9)) 
+                {
+                    rc.move(enemyarchon9);
+                }
+            }
+        } **/
     }
     static void runWatchtower(RobotController rc) throws GameActionException {
         Team ally = rc.getTeam();
         Team opponent = Team.A;
         if (ally == Team.A) {
             opponent = Team.B;
-        }
-        if (rc.getMode() == RobotMode.PORTABLE) {
-            if ((rc.canTransform()) && (rc.getTransformCooldownTurns() == 0)) {
-                rc.transform();
-            }
         }
         MapLocation me = rc.getLocation();
         RobotInfo[] nearbyRobots = rc.senseNearbyRobots(me, -1, opponent);
@@ -394,7 +477,7 @@ public strictfp class RobotPlayer {
                 robotvalue[i] = robotvalue[i] + 150;
             }
             if (rtype == RobotType.ARCHON) {
-                robotvalue[i] = robotvalue[i] + 10000;
+                robotvalue[i] = robotvalue[i] + 1500;
             }
             if (rtype == RobotType.SOLDIER) {
                 robotvalue[i] = robotvalue[i] + 100;
@@ -414,120 +497,60 @@ public strictfp class RobotPlayer {
         }
     }
 
-    static void runBuilder(RobotController rc) throws GameActionException {
+    static void runBuilder(RobotController rc) throws GameActionException 
+    {
         Team ally = rc.getTeam();
         Team opponent = Team.A;
         if (ally == Team.A) {
             opponent = Team.B;
         }
+        int myID = (int)rc.getID();
+        int turn = rc.getRoundNum();
         MapLocation me = rc.getLocation();
-
-            // three possible statuses - need to decide how to set it
-            // 0: target repair status, lock onto a normal building and repair it over and over, apply repair to secondary target if primary target is full hp
-            // 1: laboratory build/repair status, use recommended coordinates saved and provided (probably recorded) to build specific building
-            // 2: same as above but for turrets
-
-        // INSERT FUNCTION/COMMUNICATION TO DETERMINE THE ABOVE VARIABLES
-        if ((rc.getRoundNum() % 100) == 1) {
-            MapLocation testLocation;
-            for (int i = 0; i < directions.length; i++) {
-                testLocation = rc.adjacentLocation(directions[i]);
-                if (!(rc.canSenseRobotAtLocation(testLocation))) {
-                    currentTargetLocation = testLocation;
-                    builderStatus = 2;
+        RobotInfo[] robotdirection=rc.senseNearbyRobots();
+        Direction randdirection = directions[rng.nextInt(directions.length)];
+        RobotInfo[] nearbyRobots = rc.senseNearbyRobots(me, -1, ally);
+        int rhealth;
+        MapLocation currentTargetLocation = me;
+        RobotType rtype;
+        int[] robotvalue = new int[nearbyRobots.length];
+        int turns = rc.getActionCooldownTurns();
+        if ((rc.canRepair(currentTargetLocation)) && (turns == 0)) {
+            RobotInfo currentTargetRobot = rc.senseRobotAtLocation(currentTargetLocation);
+            rtype = currentTargetRobot.type;
+            rhealth = currentTargetRobot.health;
+            if ((rtype == RobotType.WATCHTOWER) && (rhealth < 110)) {
+                rc.repair(currentTargetLocation);
+            } else if ((rtype == RobotType.ARCHON) && (rhealth < 950)) {
+                rc.repair(currentTargetLocation);
+            } else if ((rtype == RobotType.LABORATORY) && (rhealth < 80)) {
+                rc.repair(currentTargetLocation);
+            }
+        } else if (turns == 0) {
+            for (int i = 0; i < nearbyRobots.length; i++) {
+                rtype = nearbyRobots[i].type; // gets type of robot
+                rhealth = nearbyRobots[i].health; // gets health of robot
+                if ((rtype == RobotType.WATCHTOWER)) {
+                    robotvalue[i] = 100 - rhealth;
+                } else if ((rtype == RobotType.ARCHON)) {
+                    robotvalue[i] = 1300 - rhealth;
+                } else if ((rtype == RobotType.LABORATORY)) {
+                    robotvalue[i] = 10 - rhealth;                   }
+            }
+            int maximum = robotvalue[0];   // find maximum robotvalue and index
+            int index = 0;
+            for (int i=1; i<robotvalue.length; i++) {
+                if (robotvalue[i] > maximum) {
+                    maximum = robotvalue[i];
+                    index = i;
                 }
+            }
+            MapLocation rlocation = nearbyRobots[index].location;
+            if (rc.canRepair(rlocation)) {
+                rc.repair(rlocation);
             }
         }
-
-
-        if (builderStatus == 0){
-            // first try to repair target, if it doesn't need healing, then search for other viable targets
-            RobotInfo[] nearbyRobots = rc.senseNearbyRobots(me, -1, ally);
-            int rhealth;
-            RobotType rtype;
-            int[] robotvalue = new int[nearbyRobots.length];
-            int turns = rc.getActionCooldownTurns();
-            if ((rc.canRepair(currentTargetLocation)) && (turns == 0)) {
-                RobotInfo currentTargetRobot = rc.senseRobotAtLocation(currentTargetLocation);
-                rtype = currentTargetRobot.type;
-                rhealth = currentTargetRobot.health;
-                if ((rtype == RobotType.WATCHTOWER) && (rhealth < 110)) {
-                    rc.repair(currentTargetLocation);
-                } else if ((rtype == RobotType.ARCHON) && (rhealth < 950)) {
-                    rc.repair(currentTargetLocation);
-                } else if ((rtype == RobotType.LABORATORY) && (rhealth < 80)) {
-                    rc.repair(currentTargetLocation);
-                }
-            } else if (turns == 0) {
-                for (int i = 0; i < nearbyRobots.length; i++) {
-                    rtype = nearbyRobots[i].type; // gets type of robot
-                    rhealth = nearbyRobots[i].health; // gets health of robot
-                    if ((rtype == RobotType.WATCHTOWER)) {
-                        robotvalue[i] = 100 - rhealth;
-                    } else if ((rtype == RobotType.ARCHON)) {
-                        robotvalue[i] = 1300 - rhealth;
-                    } else if ((rtype == RobotType.LABORATORY)) {
-                        robotvalue[i] = 10 - rhealth;                   }
-                }
-                int maximum = robotvalue[0];   // find maximum robotvalue and index
-                int index = 0;
-                for (int i=1; i<robotvalue.length; i++) {
-                    if (robotvalue[i] > maximum) {
-                        maximum = robotvalue[i];
-                        index = i;
-                    }
-                }
-                MapLocation rlocation = nearbyRobots[index].location;
-                if (rc.canRepair(rlocation)) {
-                    rc.repair(rlocation);
-                }
-            }
-        } else if (((builderStatus == 1) || (builderStatus == 2)) && (rc.canSenseLocation(currentTargetLocation))) {
-            // if builder is actively pathfinding to currentTargetLocation, this part of the code can be ignored
-            // if builder is within range of currentTargetLocation, check what is there
-                // if there is a completed full hp building, switch to mode 0 with the same target location until overridden
-                // if there is a partial hp prototype, repair it
-                // if there is nothing there, place a prototype
-            RobotInfo targetRobot = rc.senseRobotAtLocation(me);
-            if (rc.canSenseRobotAtLocation(currentTargetLocation)) {
-                targetRobot = rc.senseRobotAtLocation(currentTargetLocation);
-            }
-            Team rteam = targetRobot.team;
-            RobotMode rmode = targetRobot.mode;
-            RobotType rTargetType = RobotType.ARCHON; // will do nothing if below isn't chosen
-            if (builderStatus == 1) {
-                rTargetType = RobotType.LABORATORY;
-            } else if (builderStatus == 2) {
-                rTargetType = RobotType.WATCHTOWER;
-            }
-            if (rteam == ally) {
-                if (rmode == RobotMode.PROTOTYPE) {
-                    if (rc.canRepair(currentTargetLocation)) {
-                        rc.repair(currentTargetLocation);
-                    }
-                } else if (rmode == RobotMode.TURRET) {
-                    builderStatus = 0;
-                    if (rc.canRepair(currentTargetLocation)) {
-                        rc.repair(currentTargetLocation);
-                    }
-                }
-            } else if (!(rc.canSenseRobotAtLocation(currentTargetLocation))) {
-                Direction targetDirection;
-                for (int i = 0; i < directions.length; i++) {
-                    if (rc.adjacentLocation(directions[i]) == currentTargetLocation) {
-                        if (rc.canBuildRobot(rTargetType, directions[i])) {
-                            rc.buildRobot(rTargetType, directions[i]);
-                        }
-                    }
-                }
-            } else {
-                for (int i = 0; i < directions.length; i++) {
-                    if (rc.canBuildRobot(rTargetType, directions[i])) {
-                        rc.buildRobot(rTargetType, directions[i]);
-                    }
-                }
-            }
-        }
+        rc.buildRobot(RobotType.WATCHTOWER,randdirection);
     }
     static void randomMove(RobotController rc) throws GameActionException {
             Direction randdirection = directions[rng.nextInt(directions.length)];
