@@ -185,6 +185,15 @@ public strictfp class RobotPlayer {
                 }
             }
         }
+        if (rc.getRoundNum() > 1310) {
+            int attackArrayInformation = rc.readSharedArray(0);
+            if (attackArrayInformation < 10000) {
+                int xCoord = (int)Math.floor(attackArrayInformation / 100);
+                int yCoord = attackArrayInformation - (xCoord * 100);
+                MapLocation attackLocation = new MapLocation(xCoord, yCoord);
+                pathfind(rc, attackLocation);
+            }
+        }
         for (int dx = -1; dx <= 1; dx++) 
         {
             for (int dy = -1; dy <= 1; dy++) 
@@ -233,25 +242,6 @@ public strictfp class RobotPlayer {
                         }
                     }
                 }
-            }
-        }
-        int arrayToReadFrom = ((rc.getID() * 3) % 4);
-        int attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
-        if (attackArrayInformation < 10000) {
-            int xCoord = (int)Math.floor(attackArrayInformation / 100);
-            int yCoord = attackArrayInformation - (xCoord * 100);
-            MapLocation attackLocation = new MapLocation(xCoord, yCoord);
-            Direction attackDirection = rc.getLocation().directionTo(attackLocation);
-            if (rc.canMove(attackDirection) && doINeedToMove) {
-                rc.move(attackDirection);
-            }
-            if ((me == attackLocation) && (thereIsArchonInVision == false)) {
-                rc.writeSharedArray(arrayToReadFrom, 10000);
-            }
-        } else {
-            Direction randdirection = directions[rng.nextInt(directions.length)];
-            if (rc.canMove(randdirection) && doINeedToMove) {
-                rc.move(randdirection);
             }
         }
         if (doINeedToMove) {
@@ -328,17 +318,19 @@ public strictfp class RobotPlayer {
             MapLocation secondArchonLoc = new MapLocation(xaCoord, yaCoord);
             if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
                 if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 4), 2))) {
-                    Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
+                    pathfind(rc, mainArchonLoc);
+                    /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
                     if (rc.canMove(movementDirection)) {
                         rc.move(movementDirection);
-                    }
+                    }**/
                 }
             } else if (rc.getLocation().distanceSquaredTo(mainArchonLoc) > rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
                 if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 3.3), 2))) {
-                    Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
+                    pathfind(rc, mainArchonLoc);
+                    /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
                     if (rc.canMove(movementDirection)) {
                         rc.move(movementDirection);
-                    }
+                    }**/
                 }
             }
         }
@@ -582,7 +574,7 @@ public strictfp class RobotPlayer {
                     } else{
                         rc.move(dir);
                     }
-                } else {
+                } else if(dir == Direction.NORTHWEST){
                     if (rc.canMove(Direction.WEST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
                         rc.move(Direction.WEST);
                     } else if (rc.canMove(Direction.NORTH) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
@@ -592,6 +584,8 @@ public strictfp class RobotPlayer {
                     }
                 }
             }
+        } else {
+            randomMove(rc);
         }
     }
 }  
