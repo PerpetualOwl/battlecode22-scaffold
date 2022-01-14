@@ -29,6 +29,8 @@ public strictfp class RobotPlayer {
     static MapLocation archonloc9;
     static int x=1;
     static MapLocation currentTargetLocation; // for builders
+    static Team ally;
+    static Team opponent;
 
     static final Direction[] directions = 
     {
@@ -47,8 +49,8 @@ public strictfp class RobotPlayer {
     {
         while (true) 
         {
-            Team ally = rc.getTeam();
-            Team opponent = ally.opponent();
+            ally = rc.getTeam();
+            opponent = ally.opponent();
             try 
             {
                 switch (rc.getType()) 
@@ -167,24 +169,8 @@ public strictfp class RobotPlayer {
     static void runMiner(RobotController rc) throws GameActionException 
     {
         MapLocation me = rc.getLocation();
-        int mhp=rc.getHealth();
         int radius = rc.getType().actionRadiusSquared;
-        Team opponent = rc.getTeam().opponent();
         RobotInfo[] enemies = rc.senseNearbyRobots(radius, opponent);
-        int visiontile = -1;
-        int height=rc.getMapHeight();
-        Direction dir = directions[rng.nextInt(directions.length)];
-        int width=rc.getMapWidth();
-        boolean thereIsArchonInVision = false;
-        for (int i = 0; i < enemies.length; i++) {
-            if (enemies[i].type == RobotType.ARCHON) {
-                MapLocation toAttack = enemies[i].location;
-                thereIsArchonInVision = true;
-                if (rc.canAttack(toAttack)) 
-                {
-                }
-            }
-        }
         if (rc.getRoundNum() > 1310) {
             int attackArrayInformation = rc.readSharedArray(0);
             if (attackArrayInformation < 10000) {
@@ -192,6 +178,19 @@ public strictfp class RobotPlayer {
                 int yCoord = attackArrayInformation - (xCoord * 100);
                 MapLocation attackLocation = new MapLocation(xCoord, yCoord);
                 pathfind(rc, attackLocation);
+            }
+        }
+        robotAge++;
+        if (robotAge < 200) {
+            int mainArchon = rc.readSharedArray(4);
+            int xbCoord = (int)Math.floor(mainArchon / 100);
+            int ybCoord = mainArchon - (xbCoord * 100);
+            MapLocation mainArchonLoc = new MapLocation(xbCoord, ybCoord);
+            if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < 50) {
+                Direction dir = rc.getLocation().directionTo(mainArchonLoc).opposite();
+                if (rc.canMove(dir)) {
+                    rc.move(dir);
+                }
             }
         }
         for (int dx = -1; dx <= 1; dx++) 
@@ -228,18 +227,13 @@ public strictfp class RobotPlayer {
         System.arraycopy(array2, 0, oreLocations, array1.length, array2.length);
         for (int i = 0; i < oreLocations.length; i++) {
             if (rc.canSenseLocation(oreLocations[i])) {
-                onlead = rc.senseLead(me);
                 if (!rc.canSenseRobotAtLocation(oreLocations[i])) {
-                    while (rc.getMovementCooldownTurns() == 0) {
-                        if (goldVision!=0) {
-                            pathfind(rc, oreLocations[i]);
-                        } 
-                        else if ((leadVision!=0) && doINeedToMove)
-                        {   if (onlead==0)
-                            {
-                                pathfind(rc, oreLocations[i]);
-                            }
-                        }
+                    if (goldVision!=0) {
+                        pathfind(rc, oreLocations[i]);
+                    } 
+                    else if ((leadVision!=0) && doINeedToMove)
+                    {  
+                        pathfind(rc, oreLocations[i]);
                     }
                 }
             }
@@ -284,28 +278,61 @@ public strictfp class RobotPlayer {
         int height=rc.getMapHeight();
         Direction dir = directions[rng.nextInt(directions.length)];
         int width=rc.getMapWidth(); // make it always accessible from everywhere
-        RobotInfo[] enemies = rc.senseNearbyRobots(radius, opponent);
-        boolean thereIsArchonInVision = false;
-        for (int i = 0; i < enemies.length; i++) {
-            if (enemies[i].type == RobotType.ARCHON) {
-                MapLocation toAttack = enemies[i].location;
-                thereIsArchonInVision = true;
-                if (rc.canAttack(toAttack)) {
-                    rc.attack(toAttack);
+        RobotInfo[] nearbyRobots = rc.senseNearbyRobots(me, -1, opponent);
+        int[] robotvalue = new int[nearbyRobots.length]; // makes targeting value array for each enemy robot
+        int rhealth;
+        RobotType rtype;
+        for (int i = 0; i < nearbyRobots.length; i++) {
+            rtype = nearbyRobots[i].type; // gets type of robot
+
+            rhealth = nearbyRobots[i].health; // gets health of robot
+
+            robotvalue[i] = (100 - rhealth); // creating priority valuations
+            // going for last hits with priority on higher value units
+            if (rtype == RobotType.SAGE) {
+                robotvalue[i] = robotvalue[i] + 200;
+            }
+            if (rtype == RobotType.WATCHTOWER) {
+                robotvalue[i] = robotvalue[i] + 150;
+            }
+            if (rtype == RobotType.ARCHON) {
+                robotvalue[i] = robotvalue[i] + 10000;
+            }
+            if (rtype == RobotType.SOLDIER) {
+                robotvalue[i] = robotvalue[i] + 100;
+            }
+            if (rtype == RobotType.MINER) {
+                robotvalue[i] = robotvalue[i] + 20;
+            }
+            if (rtype == RobotType.BUILDER) {
+                robotvalue[i] = robotvalue[i] - 30;
+            }
+
+        }
+        robotAge++;
+        if (robotAge < 200) {
+            int mainArchon = rc.readSharedArray(4);
+            int xbCoord = (int)Math.floor(mainArchon / 100);
+            int ybCoord = mainArchon - (xbCoord * 100);
+            MapLocation mainArchonLoc = new MapLocation(xbCoord, ybCoord);
+            if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < 50) {
+                Direction dire = rc.getLocation().directionTo(mainArchonLoc).opposite();
+                if (rc.canMove(dire)) {
+                    rc.move(dire);
                 }
             }
-            int archonID = ((int)Math.floor(Double.valueOf(enemies[i].ID / 2)) % 4);
-            MapLocation archonLocInVision = enemies[i].location;
-            int toWrite = ((archonLocInVision.x * 100) + archonLocInVision.y);
-            rc.writeSharedArray(archonID, toWrite);
         }
-        if (enemies.length > 0) 
-        {
-            MapLocation toAttack = enemies[0].location;
-            if (rc.canAttack(toAttack)) 
-            {
-                rc.attack(toAttack);
+        int maximum = robotvalue[0];   // find maximum robotvalue and index
+        int index = 0;
+        for (int i=1; i<robotvalue.length; i++) {
+            if (robotvalue[i] > maximum) {
+                maximum = robotvalue[i];
+                index = i;
             }
+        }
+        MapLocation rlocation = nearbyRobots[index].location;
+        if (rc.canAttack(rlocation)) {
+            rc.attack(rlocation);
         }
         if (rc.getRoundNum() <= 1300) {
             int mainArchon = rc.readSharedArray(4);
@@ -316,21 +343,23 @@ public strictfp class RobotPlayer {
             xaCoord = (int)Math.floor(secondArchon / 100);
             yaCoord = secondArchon - (xaCoord * 100);
             MapLocation secondArchonLoc = new MapLocation(xaCoord, yaCoord);
-            if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
-                if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 4), 2))) {
-                    pathfind(rc, mainArchonLoc);
-                    /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
-                    if (rc.canMove(movementDirection)) {
-                        rc.move(movementDirection);
-                    }**/
-                }
-            } else if (rc.getLocation().distanceSquaredTo(mainArchonLoc) > rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
-                if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 3.3), 2))) {
-                    pathfind(rc, mainArchonLoc);
-                    /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
-                    if (rc.canMove(movementDirection)) {
-                        rc.move(movementDirection);
-                    }**/
+            if ((rc.getMapHeight() + rc.getMapWidth()) < 60) { // if map is clasutrophobic
+                if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
+                    if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 3.3), 2))) {
+                        pathfind(rc, mainArchonLoc);
+                        /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
+                        if (rc.canMove(movementDirection)) {
+                            rc.move(movementDirection);
+                        }**/
+                    }
+                } else if (rc.getLocation().distanceSquaredTo(mainArchonLoc) > rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
+                    if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 3.3), 2))) {
+                        pathfind(rc, mainArchonLoc);
+                        /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
+                        if (rc.canMove(movementDirection)) {
+                            rc.move(movementDirection);
+                        }**/
+                    }
                 }
             }
         }
@@ -450,7 +479,7 @@ public strictfp class RobotPlayer {
                 if (rmode == RobotMode.PROTOTYPE) {
                     robotvalue[i] = 1100;
                 } else if ((rtype == RobotType.WATCHTOWER)) {
-                    robotvalue[i] = 100 - rhealth;
+                    robotvalue[i] = 200 - rhealth;
                     if (rhealth == 130) {
                         robotvalue[i] = 0;
                     }
@@ -514,78 +543,73 @@ public strictfp class RobotPlayer {
     static void pathfind(RobotController rc, MapLocation loc) throws GameActionException{
         Direction dir = rc.getLocation().directionTo(loc);
         MapLocation close = rc.adjacentLocation(dir);
-        if (rc.canMove(dir)) {
-            if (rc.senseRubble(close) < 40) {
-                rc.move(dir);
-            } else{
-                if (dir == Direction.NORTH){
-                    if (rc.canMove(Direction.NORTHEAST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.NORTHEAST);
-                    } else if (rc.canMove(Direction.NORTHWEST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.NORTHWEST);
-                    } else{
-                        rc.move(dir);
-                    }
-                } else if(dir == Direction.NORTHEAST){
-                    if (rc.canMove(Direction.NORTH) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.NORTH);
-                    } else if (rc.canMove(Direction.EAST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.EAST);
-                    } else{
-                        rc.move(dir);
-                    }
-                } else if(dir == Direction.EAST){
-                    if (rc.canMove(Direction.NORTHEAST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.NORTHEAST);
-                    } else if (rc.canMove(Direction.SOUTHEAST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.SOUTHEAST);
-                    } else{
-                        rc.move(dir);
-                    }
-                } else if(dir == Direction.SOUTHEAST){
-                    if (rc.canMove(Direction.EAST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.EAST);
-                    } else if (rc.canMove(Direction.SOUTH) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.SOUTH);
-                    } else{
-                        rc.move(dir);
-                    }
-                } else if(dir == Direction.SOUTH){
-                    if (rc.canMove(Direction.SOUTHEAST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.SOUTHEAST);
-                    } else if (rc.canMove(Direction.SOUTHWEST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.SOUTHWEST);
-                    } else{
-                        rc.move(dir);
-                    }
-                } else if(dir == Direction.SOUTHWEST){
-                    if (rc.canMove(Direction.SOUTH) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.SOUTH);
-                    } else if (rc.canMove(Direction.WEST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.WEST);
-                    } else{
-                        rc.move(dir);
-                    }
-                } else if(dir == Direction.WEST){
-                    if (rc.canMove(Direction.SOUTHWEST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.SOUTHWEST);
-                    } else if (rc.canMove(Direction.NORTHWEST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.NORTHWEST);
-                    } else{
-                        rc.move(dir);
-                    }
-                } else if(dir == Direction.NORTHWEST){
-                    if (rc.canMove(Direction.WEST) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.WEST);
-                    } else if (rc.canMove(Direction.NORTH) && rc.senseRubble(rc.adjacentLocation(dir)) < 40){
-                        rc.move(Direction.NORTH);
-                    } else{
-                        rc.move(dir);
-                    }
+        if (rc.senseRubble(close) < 40) {
+            rc.move(dir);
+        } else{
+            if (dir == Direction.NORTH){
+                if (rc.canMove(Direction.NORTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHEAST)) < 40){
+                    rc.move(Direction.NORTHEAST);
+                } else if (rc.canMove(Direction.NORTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHWEST)) < 40){
+                    rc.move(Direction.NORTHWEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.NORTHEAST){
+                if (rc.canMove(Direction.NORTH) && rc.senseRubble(rc.adjacentLocation(Direction.NORTH)) < 40){
+                    rc.move(Direction.NORTH);
+                } else if (rc.canMove(Direction.EAST) && rc.senseRubble(rc.adjacentLocation(Direction.EAST)) < 40){
+                    rc.move(Direction.EAST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.EAST){
+                if (rc.canMove(Direction.NORTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHEAST)) < 40){
+                    rc.move(Direction.NORTHEAST);
+                } else if (rc.canMove(Direction.SOUTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHEAST)) < 40){
+                    rc.move(Direction.SOUTHEAST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.SOUTHEAST){
+                if (rc.canMove(Direction.EAST) && rc.senseRubble(rc.adjacentLocation(Direction.EAST)) < 40){
+                    rc.move(Direction.EAST);
+                } else if (rc.canMove(Direction.SOUTH) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTH)) < 40){
+                    rc.move(Direction.SOUTH);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.SOUTH){
+                if (rc.canMove(Direction.SOUTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHEAST)) < 40){
+                    rc.move(Direction.SOUTHEAST);
+                } else if (rc.canMove(Direction.SOUTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHWEST)) < 40){
+                    rc.move(Direction.SOUTHWEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.SOUTHWEST){
+                if (rc.canMove(Direction.SOUTH) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTH)) < 40){
+                    rc.move(Direction.SOUTH);
+                } else if (rc.canMove(Direction.WEST) && rc.senseRubble(rc.adjacentLocation(Direction.WEST)) < 40){
+                    rc.move(Direction.WEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.WEST){
+                if (rc.canMove(Direction.SOUTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHWEST)) < 40){
+                    rc.move(Direction.SOUTHWEST);
+                } else if (rc.canMove(Direction.NORTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHWEST)) < 40){
+                    rc.move(Direction.NORTHWEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else {
+                if (rc.canMove(Direction.WEST) && rc.senseRubble(rc.adjacentLocation(Direction.WEST)) < 40){
+                    rc.move(Direction.WEST);
+                } else if (rc.canMove(Direction.NORTH) && rc.senseRubble(rc.adjacentLocation(Direction.NORTH)) < 40){
+                    rc.move(Direction.NORTH);
+                } else{
+                    rc.move(dir);
                 }
             }
-        } else {
-            randomMove(rc);
         }
     }
-}  
