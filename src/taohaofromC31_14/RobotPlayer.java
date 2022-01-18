@@ -1,4 +1,4 @@
-package taohao4;
+package taohaofromC31_14;
 import battlecode.common.*;
 // import javafx.beans.binding.MapBinding; // won't compile on submission
 import java.lang.Math;
@@ -29,7 +29,8 @@ public strictfp class RobotPlayer {
     static MapLocation archonloc9;
     static int x=1;
     static MapLocation currentTargetLocation; // for builders
-    static int attackArrayInformation;
+    static Team ally;
+    static Team opponent;
 
     static final Direction[] directions = 
     {
@@ -48,8 +49,8 @@ public strictfp class RobotPlayer {
     {
         while (true) 
         {
-            Team ally = rc.getTeam();
-            Team opponent = ally.opponent();
+            ally = rc.getTeam();
+            opponent = ally.opponent();
             try 
             {
                 switch (rc.getType()) 
@@ -101,27 +102,22 @@ public strictfp class RobotPlayer {
             }
         }
         Direction dir = directions[rng.nextInt(directions.length)];
+
         if (rc.getRoundNum() == 1) {
-            rc.writeSharedArray(0, 10000);
-            rc.writeSharedArray(1, 10000);
-            rc.writeSharedArray(2, 10000);
-            rc.writeSharedArray(3, 10000);
-        }
-        if (rc.getRoundNum() == 2) {
             int archonID = ((int)Math.floor(Double.valueOf((rc.getID() - 2) / 2)) % 4);
             int xCoord = rc.getMapWidth() - me.x;
             int yCoord = rc.getMapHeight() - me.y;
             int toWrite = ((xCoord * 100) + yCoord);
             rc.writeSharedArray(archonID, toWrite);
         }
-        if (rc.getRoundNum() > 2) {
-            int archonID = (((int)Math.floor(Double.valueOf((rc.getID() - 2) / 2)) % 4) + 4);
-            int xCoord = me.x;
-            int yCoord = me.y;
-            int toWrite = ((xCoord * 100) + yCoord);
-            rc.writeSharedArray(archonID, toWrite);
-        }
-        if  (((rc.getRoundNum() % 100) == 0) && (myID < 4)) {
+
+        int archonID = (((int)Math.floor(Double.valueOf((rc.getID() - 2) / 2)) % 4) + 4);
+        int xCoord = me.x;
+        int yCoord = me.y;
+        int toWrite = ((xCoord * 100) + yCoord);
+        rc.writeSharedArray(archonID, toWrite);
+
+        if  (((rc.getRoundNum() % 160) == 0) && (myID < 4)) {
             if (rc.canBuildRobot(RobotType.BUILDER, dir))
                 {
                     rc.buildRobot(RobotType.BUILDER, dir);
@@ -156,14 +152,11 @@ public strictfp class RobotPlayer {
                 }
             }
             int mainArchon = rc.readSharedArray(4);
-            int xCoord = (int)Math.floor(mainArchon / 100);
-            int yCoord = mainArchon - (xCoord * 100);
+            xCoord = (int)Math.floor(mainArchon / 100);
+            yCoord = mainArchon - (xCoord * 100);
             MapLocation mainArchonLoc = new MapLocation(xCoord, yCoord);
             if (rc.getLocation().distanceSquaredTo(mainArchonLoc) > 15) {
-                Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
-                if (rc.canMove(movementDirection)) {
-                    rc.move(movementDirection);
-                }
+                pathfind(rc, mainArchonLoc);
             } else if ((rc.getLocation().distanceSquaredTo(mainArchonLoc) <= 15) && (rc.getMode() == RobotMode.PORTABLE)){
                 if (rc.canTransform()) {
                     rc.transform();
@@ -175,17 +168,14 @@ public strictfp class RobotPlayer {
     {
         MapLocation me = rc.getLocation();
         int radius = rc.getType().actionRadiusSquared;
-        RobotInfo[] enemies = rc.senseNearbyRobots(radius, rc.getTeam().opponent());
+        RobotInfo[] enemies = rc.senseNearbyRobots(radius, opponent);
         if (rc.getRoundNum() > 1310) {
-            attackArrayInformation = rc.readSharedArray(0);
+            int attackArrayInformation = rc.readSharedArray(0);
             if (attackArrayInformation < 10000) {
                 int xCoord = (int)Math.floor(attackArrayInformation / 100);
                 int yCoord = attackArrayInformation - (xCoord * 100);
                 MapLocation attackLocation = new MapLocation(xCoord, yCoord);
-                Direction dir = rc.getLocation().directionTo(attackLocation);
-                if (rc.canMove(dir)) {
-                    rc.move(dir);
-                }
+                pathfind(rc, attackLocation);
             }
         }
         robotAge++;
@@ -226,6 +216,9 @@ public strictfp class RobotPlayer {
         if (rc.senseLead(me) >= 1 || rc.senseGold(me) >= 1) {
             doINeedToMove = false;
         }
+        if (rc.senseNearbyRobots().length > 6) {
+            doINeedToMove = true;
+        }
         MapLocation[] array1 = rc.senseNearbyLocationsWithLead();
         MapLocation[] array2 = rc.senseNearbyLocationsWithGold();
         MapLocation[] oreLocations = Arrays.copyOf(array1, array1.length + array2.length);
@@ -233,44 +226,20 @@ public strictfp class RobotPlayer {
         for (int i = 0; i < oreLocations.length; i++) {
             if (rc.canSenseLocation(oreLocations[i])) {
                 if (!rc.canSenseRobotAtLocation(oreLocations[i])) {
-                    if (rc.senseGold(oreLocations[i])!=0) {
-                        Direction goldDirection = rc.getLocation().directionTo(oreLocations[i]);
-                        if (rc.canMove(goldDirection)) {
-                            rc.move(goldDirection);
-                        }
-                    }
-                    else if ((rc.senseLead(oreLocations[i])>(rc.senseLead(me))) && doINeedToMove)
+                    if (goldVision!=0) {
+                        pathfind(rc, oreLocations[i]);
+                    } 
+                    else if ((leadVision!=0) && doINeedToMove)
                     {  
-                        Direction leadDirection = rc.getLocation().directionTo(oreLocations[i]);
-                        if (rc.canMove(leadDirection)) {
-                            rc.move(leadDirection);
-                        }
+                        pathfind(rc, oreLocations[i]);
                     }
                 }
             }
         }
-        if (rc.getRoundNum() > 1300) {
-            int arrayToReadFrom = (rc.getID() % 4);
-            attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
-            if (attackArrayInformation < 10000) {
-                int xCoord = (int)Math.floor(attackArrayInformation / 100);
-                int yCoord = attackArrayInformation - (xCoord * 100);
-                MapLocation attackLocation = new MapLocation(xCoord, yCoord);
-                Direction attackDirection = rc.getLocation().directionTo(attackLocation);
-                if (rc.canMove(attackDirection) && doINeedToMove) {
-                    rc.move(attackDirection);
-                }
-                if ((me == attackLocation)) {
-                    rc.writeSharedArray(arrayToReadFrom, 10000);
-                }
-            } else {
-                Direction randdirection = directions[rng.nextInt(directions.length)];
-                if (rc.canMove(randdirection) && doINeedToMove) {
-                    rc.move(randdirection);
-                }
-            }
+        if (doINeedToMove) {
+            randomMove(rc);
         }
-        if (rc.getMovementCooldownTurns() == 0) 
+        /** if (rc.getMovementCooldownTurns() == 0) 
         {
             //  making a grid
             int fiveWidth = (int)Math.floor(Double.valueOf(rc.getMapWidth() / 5));
@@ -285,8 +254,19 @@ public strictfp class RobotPlayer {
             {
                 rc.move(toGridPoint);
             }
-            randomMove(rc);
-        }
+            if (rc.isActionReady()) {
+                randomMove(rc);
+            }
+        } **/
+            /**if (turnCount!= 1)
+        {
+            MapLocation earchon =  new MapLocation((width - archonloc2.x), (height - archonloc2.y));
+            Direction enemyarchon = rc.getLocation().directionTo(earchon);
+            if (rc.canMove(enemyarchon)) 
+            {
+                rc.move(enemyarchon);
+            }
+        }**/
     }
     static void runSoldier(RobotController rc) throws GameActionException 
     {
@@ -341,7 +321,7 @@ public strictfp class RobotPlayer {
         if (rc.canAttack(rlocation)) {
             rc.attack(rlocation);
         }
-        if (turnCount <= 1300) {
+        if (turnCount <= 1300 && ((rc.getMapHeight() + rc.getMapWidth()) < 60)) {
             int mainArchon = rc.readSharedArray(4);
             int xaCoord = (int)Math.floor(mainArchon / 100);
             int yaCoord = mainArchon - (xaCoord * 100);
@@ -351,44 +331,31 @@ public strictfp class RobotPlayer {
             yaCoord = secondArchon - (xaCoord * 100);
             MapLocation secondArchonLoc = new MapLocation(xaCoord, yaCoord);
             if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
-                if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 4), 2))) {
-                    Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
+                if (rc.getLocation().distanceSquaredTo(mainArchonLoc) > (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 2), 2))) {
+                    pathfind(rc, mainArchonLoc);
+                    /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
                     if (rc.canMove(movementDirection)) {
                         rc.move(movementDirection);
-                    }
+                    }**/
                 }
             } else if (rc.getLocation().distanceSquaredTo(mainArchonLoc) > rc.getLocation().distanceSquaredTo(secondArchonLoc)) {
-                if (rc.getLocation().distanceSquaredTo(mainArchonLoc) < (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 3.3), 2))) {
-                    Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
+                if (rc.getLocation().distanceSquaredTo(secondArchonLoc) > (Math.pow(((rc.getMapHeight() + rc.getMapWidth()) / 2), 2))) {
+                    pathfind(rc, secondArchonLoc);
+                    /**Direction movementDirection = rc.getLocation().directionTo(mainArchonLoc);
                     if (rc.canMove(movementDirection)) {
                         rc.move(movementDirection);
-                    }
+                    }**/
                 }
             }
         }
         // getCurrentAttackLocation
-        int arrayToReadFrom = 0;
-        attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
-        if (attackArrayInformation > 10000 && attackArrayInformation == 0) {
-            arrayToReadFrom = 1;
-            attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
-            if (attackArrayInformation > 10000 && attackArrayInformation == 0) {
-                arrayToReadFrom = 2;
-            }
-                attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
-                if (attackArrayInformation > 10000 && attackArrayInformation == 0) {
-                    arrayToReadFrom = 3;
-                }
-        }
-        attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
+        int arrayToReadFrom = (rc.getID() % 4);
+        int attackArrayInformation = rc.readSharedArray(arrayToReadFrom);
         if (attackArrayInformation < 10000) {
             int xCoord = (int)Math.floor(attackArrayInformation / 100);
             int yCoord = attackArrayInformation - (xCoord * 100);
             MapLocation attackLocation = new MapLocation(xCoord, yCoord);
-            Direction attackDirection = rc.getLocation().directionTo(attackLocation);
-            if (rc.canMove(attackDirection)) {
-                rc.move(attackDirection);
-            }
+            pathfind(rc, attackLocation);
             if ((me == attackLocation) && (thereIsArchonInVision == false)) {
                 rc.writeSharedArray(arrayToReadFrom, 10000);
             }
@@ -398,6 +365,7 @@ public strictfp class RobotPlayer {
                 rc.move(randdirection);
             }
         }
+        randomMove(rc);
     }
     static void runWatchtower(RobotController rc) throws GameActionException {
         Team ally = rc.getTeam();
@@ -468,7 +436,11 @@ public strictfp class RobotPlayer {
         RobotMode rmode;
         int[] robotvalue = new int[nearbyRobots.length];
         int turns = rc.getActionCooldownTurns();
-        if ((rc.canRepair(currentTargetLocation)) && (turns == 0)) {
+        if (rc.canBuildRobot(RobotType.WATCHTOWER,randdirection) && turnCount % 10 == 1) 
+        {
+                rc.buildRobot(RobotType.WATCHTOWER,randdirection);
+        }
+        else if ((rc.canRepair(currentTargetLocation)) && (turns == 0)) {
             RobotInfo currentTargetRobot = rc.senseRobotAtLocation(currentTargetLocation);
             rtype = currentTargetRobot.type;
             rhealth = currentTargetRobot.health;
@@ -490,7 +462,7 @@ public strictfp class RobotPlayer {
                 if (rmode == RobotMode.PROTOTYPE) {
                     robotvalue[i] = 1100;
                 } else if ((rtype == RobotType.WATCHTOWER)) {
-                    robotvalue[i] = 100 - rhealth;
+                    robotvalue[i] = 200 - rhealth;
                     if (rhealth == 130) {
                         robotvalue[i] = 0;
                     }
@@ -519,11 +491,6 @@ public strictfp class RobotPlayer {
                 rc.repair(rlocation);
             }
         }
-        if ((rc.getRoundNum() % 10) == 1) {
-            if (!rc.canSenseRobotAtLocation(rc.adjacentLocation(randdirection))) {
-                rc.buildRobot(RobotType.WATCHTOWER,randdirection);
-            }
-        }
         if (me.y < 5) {
             if (rc.canMove(Direction.NORTH)) {
                 rc.move(Direction.NORTH);
@@ -540,7 +507,8 @@ public strictfp class RobotPlayer {
             if (rc.canMove(Direction.WEST)) {
                 rc.move(Direction.WEST);
             }
-        } else if (turns == 0) {
+        }
+        if (turns == 0) {
             randomMove(rc);
         }
     }
@@ -549,5 +517,129 @@ public strictfp class RobotPlayer {
             if (rc.canMove(randdirection)) {
                 rc.move(randdirection);
             }
+    }
+    static void pathfind(RobotController rc, MapLocation loc) throws GameActionException{
+        Direction dir = rc.getLocation().directionTo(loc);
+        MapLocation close = rc.adjacentLocation(dir);
+        if (rc.senseRubble(close) < 40 && rc.canMove(dir)) {
+            rc.move(dir);
+        } else if (rc.canMove(dir)){
+            if (dir == Direction.NORTH){
+                if (rc.canMove(Direction.NORTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHEAST)) < 40){
+                    rc.move(Direction.NORTHEAST);
+                } else if (rc.canMove(Direction.NORTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHWEST)) < 40){
+                    rc.move(Direction.NORTHWEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.NORTHEAST){
+                if (rc.canMove(Direction.NORTH) && rc.senseRubble(rc.adjacentLocation(Direction.NORTH)) < 40){
+                    rc.move(Direction.NORTH);
+                } else if (rc.canMove(Direction.EAST) && rc.senseRubble(rc.adjacentLocation(Direction.EAST)) < 40){
+                    rc.move(Direction.EAST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.EAST){
+                if (rc.canMove(Direction.NORTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHEAST)) < 40){
+                    rc.move(Direction.NORTHEAST);
+                } else if (rc.canMove(Direction.SOUTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHEAST)) < 40){
+                    rc.move(Direction.SOUTHEAST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.SOUTHEAST){
+                if (rc.canMove(Direction.EAST) && rc.senseRubble(rc.adjacentLocation(Direction.EAST)) < 40){
+                    rc.move(Direction.EAST);
+                } else if (rc.canMove(Direction.SOUTH) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTH)) < 40){
+                    rc.move(Direction.SOUTH);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.SOUTH){
+                if (rc.canMove(Direction.SOUTHEAST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHEAST)) < 40){
+                    rc.move(Direction.SOUTHEAST);
+                } else if (rc.canMove(Direction.SOUTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHWEST)) < 40){
+                    rc.move(Direction.SOUTHWEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.SOUTHWEST){
+                if (rc.canMove(Direction.SOUTH) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTH)) < 40){
+                    rc.move(Direction.SOUTH);
+                } else if (rc.canMove(Direction.WEST) && rc.senseRubble(rc.adjacentLocation(Direction.WEST)) < 40){
+                    rc.move(Direction.WEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else if(dir == Direction.WEST){
+                if (rc.canMove(Direction.SOUTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.SOUTHWEST)) < 40){
+                    rc.move(Direction.SOUTHWEST);
+                } else if (rc.canMove(Direction.NORTHWEST) && rc.senseRubble(rc.adjacentLocation(Direction.NORTHWEST)) < 40){
+                    rc.move(Direction.NORTHWEST);
+                } else{
+                    rc.move(dir);
+                }
+            } else {
+                if (rc.canMove(Direction.WEST) && rc.senseRubble(rc.adjacentLocation(Direction.WEST)) < 40){
+                    rc.move(Direction.WEST);
+                } else if (rc.canMove(Direction.NORTH) && rc.senseRubble(rc.adjacentLocation(Direction.NORTH)) < 40){
+                    rc.move(Direction.NORTH);
+                } else{
+                    rc.move(dir);
+                }
+            }
+        } else {
+            if (dir == Direction.NORTH){
+                if (rc.canMove(Direction.NORTHEAST)){
+                    rc.move(Direction.NORTHEAST);
+                } else if (rc.canMove(Direction.NORTHWEST)){
+                    rc.move(Direction.NORTHWEST);
+                }
+            } else if(dir == Direction.NORTHEAST){
+                if (rc.canMove(Direction.NORTH)){
+                    rc.move(Direction.NORTH);
+                } else if (rc.canMove(Direction.EAST)){
+                    rc.move(Direction.EAST);
+                }
+            } else if(dir == Direction.EAST){
+                if (rc.canMove(Direction.NORTHEAST)){
+                    rc.move(Direction.NORTHEAST);
+                } else if (rc.canMove(Direction.SOUTHEAST)){
+                    rc.move(Direction.SOUTHEAST);
+                }
+            } else if(dir == Direction.SOUTHEAST){
+                if (rc.canMove(Direction.EAST)){
+                    rc.move(Direction.EAST);
+                } else if (rc.canMove(Direction.SOUTH)){
+                    rc.move(Direction.SOUTH);
+                }
+            } else if(dir == Direction.SOUTH){
+                if (rc.canMove(Direction.SOUTHEAST)){
+                    rc.move(Direction.SOUTHEAST);
+                } else if (rc.canMove(Direction.SOUTHWEST)){
+                    rc.move(Direction.SOUTHWEST);
+                }
+            } else if(dir == Direction.SOUTHWEST){
+                if (rc.canMove(Direction.SOUTH)){
+                    rc.move(Direction.SOUTH);
+                } else if (rc.canMove(Direction.WEST)){
+                    rc.move(Direction.WEST);
+                }
+            } else if(dir == Direction.WEST){
+                if (rc.canMove(Direction.SOUTHWEST)){
+                    rc.move(Direction.SOUTHWEST);
+                } else if (rc.canMove(Direction.NORTHWEST)){
+                    rc.move(Direction.NORTHWEST);
+                }
+            } else {
+                if (rc.canMove(Direction.WEST)){
+                    rc.move(Direction.WEST);
+                } else if (rc.canMove(Direction.NORTH)){
+                    rc.move(Direction.NORTH);
+                }
+            }
+        }
+        randomMove(rc);
     }
 }  
